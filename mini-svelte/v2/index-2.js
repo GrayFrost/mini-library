@@ -29,6 +29,7 @@ function parse(content) {
         fragments.push(fragment);
       }
     }
+    return fragments;
   }
 
   function parseFragment() {

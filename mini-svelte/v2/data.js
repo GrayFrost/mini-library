@@ -1,0 +1,1 @@
+const str = '<script>\n  let counter = 5;\n  let foo = 5;\n  const increment = () => counter++;\n  const decrement = () => counter--;\n  const incrementFoo = () => foo++;\n\n</script>\n\n<button on:click={decrement}>Decrement</button>\n<button on:click={increment}>Increment</button>\n<button on:click={incrementFoo}>Increment Foo</button>'

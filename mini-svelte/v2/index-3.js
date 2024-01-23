@@ -5,43 +5,59 @@ import * as acorn from "acorn";
 // import * as estreewalker from "estree-walker"; // todo 作用？
 import * as escodegen from "escodegen"; // todo 作用？
 
+import { fileURLToPath } from 'url'
+import { dirname, resolve } from 'path'
+
+
+const modulePath = dirname(fileURLToPath(import.meta.url));
+console.log('zzh modulepath', modulePath);
+
 // 将svelte文件转成浏览器可以执行的js文件
 function buildAppJs() {
   try {
     console.log('here');
-    const content = fs.readFileSync("./app.svelte", "utf-8");
-    fs.writeFileSync("./app.js", compile(content), "utf-8");
+    const content = fs.readFileSync(resolve(modulePath, "./app.svelte"), "utf-8");
+    fs.writeFileSync(resolve(modulePath, "./app.js"), compile(content), "utf-8");
   } catch (e) {
     console.error(e);
   }
 }
 
 function compile(content) {
+  console.log('compile', content);
   const ast = parse(content); // 解析svelte文件内容成ast
   return generate(ast);
 }
 
 function parse(content) {
+  console.log('parse')
   let i = 0;
   const ast = {};
   ast.html = parseFragments(() => i <= content.length);
   return ast;
 
   function parseFragments(condition) {
+    console.log('parseFragments');
     const fragments = [];
+    console.log('zzh ourter i', i);
     while (condition()) {
+      console.log('zzh i',i, content.length);
       const fragment = parseFragment();
       if (fragment) {
         fragments.push(fragment);
       }
     }
+    return fragments;
   }
 
   function parseFragment() {
+    console.log('parseFragment');
     return parseScript() ?? parseElement() ?? parseExpression() ?? parseText();
+    // return parseScript() ?? parseElement() ?? parseExpression() ?? parseText();
   }
 
   function parseScript() {
+    console.log('parseScript', match("<script>"));
     if (match("<script>")) {
       eat("<script>");
       const startIndex = i;
@@ -50,13 +66,17 @@ function parse(content) {
       ast.script = acorn.parse(code, { ecmaVersion: 2023 });
       i = endIndex;
       eat("</script>");
+      skipWhitespace();
     }
   }
 
   function parseElement() {
+    console.log('parseElement', match('<'));
     if (match('<')) {
+      console.log('parseElement inner');
       eat('<');
       const tagName = readWhileMatching(/[a-z]/);
+      console.log('zzh tagname', tagName);
       const attributes = parseAttributeList();
       eat('>');
       const endTag = `</${tagName}>`;
@@ -72,6 +92,7 @@ function parse(content) {
   }
 
   function parseAttributeList() {
+    console.log('parseAttributeList');
     const attributes = [];
     skipWhitespace();
     while (!match('>')) {
@@ -82,6 +103,7 @@ function parse(content) {
   }
 
   function parseAttribute() {
+    console.log('parseAttribute');
     const name = readWhileMatching(/[^=]/);
     eat('={');
     const value = parseJavaScript();
@@ -94,6 +116,7 @@ function parse(content) {
   }
 
   function parseExpression() {
+    console.log('parseExpression')
     if (match('{')) {
       eat('{');
       const expression = parseJavaScript();
@@ -106,6 +129,7 @@ function parse(content) {
   }
 
   function parseText() {
+    console.log('parseText')
     const text = readWhileMatching(/[^<{]/);
     if (text.trim() !== '') {
       return {
@@ -148,7 +172,8 @@ function parse(content) {
 
 function analyze() {}
 
-function generate() {
+function generate(ast) {
+  console.log('generate')
   const code = {
     variables: [],
     create: [],
