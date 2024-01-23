@@ -1,13 +1,19 @@
 import * as fs from "fs";
+// import path from "path";
 import * as acorn from "acorn";
-import * as periscopic from "periscopic"; // todo 作用？
-import * as estreewalker from "estree-walker"; // todo 作用？
+// import * as periscopic from "periscopic"; // todo 作用？
+// import * as estreewalker from "estree-walker"; // todo 作用？
 import * as escodegen from "escodegen"; // todo 作用？
 
 // 将svelte文件转成浏览器可以执行的js文件
 function buildAppJs() {
-  const content = fs.readFileSync("./app.svelte", "utf-8");
-  fs.writeFileSync("./app.js", compile(content), "utf-8");
+  try {
+    console.log('here');
+    const content = fs.readFileSync("./app.svelte", "utf-8");
+    fs.writeFileSync("./app.js", compile(content), "utf-8");
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 function compile(content) {
@@ -153,15 +159,40 @@ function generate() {
 
   let counter = 1;
   
-  function traverse(node) {
+  function traverse(node, parent) {
     switch(node.type) {
       case 'Element': {
+        const variableName = `${node.name}_${counter++}`;
+        code.variables.push(variableName);
+        code.create.push(
+          `${variableName} = document.createElement('${node.name}')`
+        )
+        node.attributes.forEach(attribute => {
+          traverse(attribute, variableName);
+        })
+
+        node.children.forEach(child => {
+          traverse(child, variableName);
+        })
+
+        code.create.push(`${parent}.appendChild(${variableName})`);
+        code.destroy.push(`${parent}.removeChild(${variableName})`);
         break;
       }
       case 'Text': {
+        const variableName = `txt_${counter++}`;
+        code.variables.push(variableName);
+        code.create.push(`${variableName} = document.createTextNode('${node.value}');`);
+        code.create.push(`${parent}.appendChild(${variableName})`);
         break;
       }
       case 'Attribute': {
+        if (node.name.startsWith('on:')) {
+          const eventName = node.name.slice(3);
+          const eventHandler = node.value.name;
+          code.create.push(`${parent}.addEventListener('${eventName}', ${eventHandler});`);
+          code.destroy.push(`${parent}.removeEventListener('${eventName}', '${eventHandler}');`);
+        }
         break;
       }
       case 'Expression': {
@@ -169,14 +200,31 @@ function generate() {
       }
     }
   }
+
+  ast.html.forEach((fragment) => traverse(fragment, 'target'));
+
   return `
       export default function() {
+        ${code.variables.map(v => `let ${v};`).join('\n')}
+
+        function update() {}
+
+        ${escodegen.generate(ast.script)}
+
         var lifecircle = {
-          create() {},
-          update() {},
-          destroy() {}
-        }
+          create(target) {
+            ${code.create.join('\n')}
+          },
+          update(changed) {
+            ${code.update.join('\n')}
+          },
+          destroy(target) {
+            ${code.destroy.join('\n')}
+          }
+        };
         return lifecircle;
       }
     `;
 }
+
+buildAppJs();
