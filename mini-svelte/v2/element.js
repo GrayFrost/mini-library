@@ -13,7 +13,7 @@ const modulePath = dirname(fileURLToPath(import.meta.url));
 // 将svelte文件转成浏览器可以执行的js文件
 function buildAppJs() {
   try {
-    const content = fs.readFileSync(resolve(modulePath, "./app.svelte"), "utf-8");
+    const content = fs.readFileSync(resolve(modulePath, "./app-2.svelte"), "utf-8");
     fs.writeFileSync(resolve(modulePath, "./app.js"), compile(content), "utf-8");
   } catch (e) {
     console.error(e);
@@ -35,6 +35,7 @@ function parse(content) {
 
   function parseFragments(condition) {
     const fragments = [];
+    // const fragment = parseFragment();
     while (condition()) {
       const fragment = parseFragment();
       if (fragment) {
@@ -45,7 +46,7 @@ function parse(content) {
   }
 
   function parseFragment() {
-    return parseScript();
+    return parseScript() ?? parseElement();
   }
 
   function parseScript() {
@@ -56,13 +57,46 @@ function parse(content) {
       const startIndex = i;
       const endIndex = content.indexOf("</script>", i);
       const code = content.slice(startIndex, endIndex);
-      console.log('zzh code', code);
       ast.script = acorn.parse(code, { ecmaVersion: 2023 });
-      console.log('zzh ast script', endIndex);
       i = endIndex;
+      console.log('zzh endindex', endIndex);
       eat("</script>");
       skipWhitespace();
     }
+  }
+
+  function parseElement() {
+    skipWhitespace();
+    if (match('<')) {
+      eat('<');
+      const tagName = readWhileMatching(/[a-z]/);
+      eat('>');
+      const endTag = `</${tagName}>`;
+      console.log('zzh endTag', endTag);
+      const element = {
+        type: 'Element',
+        name: tagName,
+        attributes: [],
+        children: [],
+      };
+      eat(endTag);
+      skipWhitespace();
+      return element;
+    }
+    // if (match('<')) {
+    //   eat('<');
+    //   const tagName = readWhileMatching(/[a-z]/);
+    //   eat('>');
+    //   const endTag = `</${tagName}>`;
+    //   const element = {
+    //     type: 'Element',
+    //     name: tagName,
+    //     attributes: [],
+    //     children: parseFragments(() => !match(endTag)),
+    //   };
+    //   eat(endTag);
+    //   return element;
+    // }
   }
 
   function match(str) {
@@ -97,6 +131,36 @@ function generate(ast) {
     update: [],
     destroy: [],
   };
+
+  let counter = 1;
+
+  function traverse(node, parent) {
+    switch(node.type) {
+      case 'Element': {
+        const variableName = `${node.name}_${counter++}`;
+        code.variables.push(variableName);
+        code.create.push(
+          `${variableName} = document.createElement('${node.name}')`
+        )
+        node.attributes.forEach(attribute => {
+          traverse(attribute, variableName);
+        })
+
+        node.children.forEach(child => {
+          traverse(child, variableName);
+        })
+
+        code.create.push(`${parent}.appendChild(${variableName})`);
+        code.destroy.push(`${parent}.removeChild(${variableName})`);
+        break;
+      }
+      case 'Expression': {
+        break;
+      }
+    }
+  }
+
+  ast.html.forEach((fragment) => traverse(fragment, 'target'));
 
   return `
       export default function() {
