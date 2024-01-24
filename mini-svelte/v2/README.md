@@ -4,5 +4,5 @@ parsescript
 parseelement
 parsetext
 parseattribute
-parseExpression
+parseExpression -- 放到后面
 traverse

@@ -11,5 +11,5 @@
 </script>
 
 <button on:click={updateCount}></button>
-
+{count}
 hello

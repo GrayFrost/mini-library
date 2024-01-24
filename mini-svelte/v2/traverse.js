@@ -13,7 +13,7 @@ const modulePath = dirname(fileURLToPath(import.meta.url));
 // 将svelte文件转成浏览器可以执行的js文件
 function buildAppJs() {
   try {
-    const content = fs.readFileSync(resolve(modulePath, "./app-4.svelte"), "utf-8");
+    const content = fs.readFileSync(resolve(modulePath, "./app-6.svelte"), "utf-8");
     fs.writeFileSync(resolve(modulePath, "./app.js"), compile(content), "utf-8");
   } catch (e) {
     console.error(e);
@@ -73,12 +73,11 @@ function parse(content) {
       const attributes = parseAttributeList();
       eat('>');
       const endTag = `</${tagName}>`;
-      console.log('zzh endTag', endTag);
       const element = {
         type: 'Element',
         name: tagName,
         attributes,
-        children: [],
+        children: parseFragments(() => !match(endTag)),
       };
       eat(endTag);
       skipWhitespace();
