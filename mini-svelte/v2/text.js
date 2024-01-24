@@ -13,7 +13,7 @@ const modulePath = dirname(fileURLToPath(import.meta.url));
 // 将svelte文件转成浏览器可以执行的js文件
 function buildAppJs() {
   try {
-    const content = fs.readFileSync(resolve(modulePath, "./app-2.svelte"), "utf-8");
+    const content = fs.readFileSync(resolve(modulePath, "./app-3.svelte"), "utf-8");
     fs.writeFileSync(resolve(modulePath, "./app.js"), compile(content), "utf-8");
   } catch (e) {
     console.error(e);
@@ -46,7 +46,7 @@ function parse(content) {
   }
 
   function parseFragment() {
-    return parseScript() ?? parseElement();
+    return parseScript() ?? parseElement() ?? parseText();
   }
 
   function parseScript() {
@@ -83,20 +83,17 @@ function parse(content) {
       skipWhitespace();
       return element;
     }
-    // if (match('<')) {
-    //   eat('<');
-    //   const tagName = readWhileMatching(/[a-z]/);
-    //   eat('>');
-    //   const endTag = `</${tagName}>`;
-    //   const element = {
-    //     type: 'Element',
-    //     name: tagName,
-    //     attributes: [],
-    //     children: parseFragments(() => !match(endTag)),
-    //   };
-    //   eat(endTag);
-    //   return element;
-    // }
+  }
+
+  function parseText() {
+    console.log('parseText');
+    const text = readWhileMatching(/[^<{]/);
+    if (text.trim() !== '') {
+      return {
+        type: 'Text',
+        value: text,
+      }
+    }
   }
 
   function match(str) {
@@ -150,6 +147,14 @@ function generate(ast) {
           traverse(child, variableName);
         })
 
+        code.create.push(`${parent}.appendChild(${variableName})`);
+        code.destroy.push(`${parent}.removeChild(${variableName})`);
+        break;
+      }
+      case 'Text': {
+        const variableName = `txt_${counter++}`;
+        code.variables.push(variableName);
+        code.create.push(`${variableName} = document.createTextNode('${node.value}');`);
         code.create.push(`${parent}.appendChild(${variableName})`);
         code.destroy.push(`${parent}.removeChild(${variableName})`);
         break;
