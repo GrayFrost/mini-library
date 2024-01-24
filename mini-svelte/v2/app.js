@@ -8,6 +8,7 @@ let txt_5;
 let li_6;
 let txt_7;
 let txt_8;
+let txt_9;
         
         function update() {}
         let count = 0;
@@ -33,8 +34,10 @@ txt_7 = document.createTextNode('two');
 li_6.appendChild(txt_7)
 ul_3.appendChild(li_6)
 target.appendChild(ul_3)
-txt_8 = document.createTextNode('hello');
+txt_8 = document.createTextNode('count:');
 target.appendChild(txt_8)
+txt_9 = document.createTextNode(count)
+target.appendChild(txt_9);
           },
           update(changed) {
             

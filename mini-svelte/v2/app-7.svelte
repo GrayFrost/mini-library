@@ -10,6 +10,9 @@
 
 </script>
 
-<button on:click={updateCount}></button>
-{count}
-hello
+<button on:click={updateCount}>add count</button>
+<ul>
+  <li>one</li>
+  <li>two</li>
+</ul>
+count:{count}
