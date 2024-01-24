@@ -1,14 +1,10 @@
 
       export default function() {
-        
-
         function update() {}
-
-        let counter = 5;
-let foo = 5;
-const increment = () => counter++;
-const decrement = () => counter--;
-const incrementFoo = () => foo++;
+        let count = 0;
+const updateCount = () => {
+    count++;
+};
 
         var lifecircle = {
           create(target) {

@@ -39,24 +39,24 @@ function parse(content) {
   function parseFragments(condition) {
     console.log('parseFragments');
     const fragments = [];
-    console.log('zzh ourter i', i);
-    while (condition()) {
-      console.log('zzh i',i, content.length);
-      const fragment = parseFragment();
-      if (fragment) {
-        fragments.push(fragment);
-      }
-    }
+    // while (condition()) {
+    //   const fragment = parseFragment();
+    //   if (fragment) {
+    //     fragments.push(fragment);
+    //   }
+    // }
+    parseFragment();
     return fragments;
   }
 
   function parseFragment() {
     console.log('parseFragment');
-    return parseScript() ?? parseElement() ?? parseExpression() ?? parseText();
     // return parseScript() ?? parseElement() ?? parseExpression() ?? parseText();
+    return parseScript() ?? parseElement();
   }
 
   function parseScript() {
+    skipWhitespace();
     console.log('parseScript', match("<script>"));
     if (match("<script>")) {
       eat("<script>");
@@ -72,8 +72,8 @@ function parse(content) {
 
   function parseElement() {
     console.log('parseElement', match('<'));
+    skipWhitespace();
     if (match('<')) {
-      console.log('parseElement inner');
       eat('<');
       const tagName = readWhileMatching(/[a-z]/);
       console.log('zzh tagname', tagName);
@@ -105,14 +105,16 @@ function parse(content) {
   function parseAttribute() {
     console.log('parseAttribute');
     const name = readWhileMatching(/[^=]/);
-    eat('={');
-    const value = parseJavaScript();
-    eat('}');
-    return {
-      type: 'Attribute',
-      name,
-      value,
-    };
+    if (match('={')) {
+      eat('={');
+      const value = parseJavaScript();
+      eat('}');
+      return {
+        type: 'Attribute',
+        name,
+        value,
+      };
+    }
   }
 
   function parseExpression() {
