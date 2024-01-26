@@ -13,7 +13,7 @@ const modulePath = dirname(fileURLToPath(import.meta.url));
 // 将svelte文件转成浏览器可以执行的js文件
 function buildAppJs() {
   try {
-    const content = fs.readFileSync(resolve(modulePath, "./app-8.svelte"), "utf-8");
+    const content = fs.readFileSync(resolve(modulePath, "./app-10.svelte"), "utf-8");
     fs.writeFileSync(resolve(modulePath, "./app.js"), compile(content), "utf-8");
   } catch (e) {
     console.error(e);
@@ -113,7 +113,7 @@ function parse(content) {
 
   function parseExpression() {
     console.log('parseExpression')
-    if (match('{')) {
+    if (match('{') && !match('{#')) {
       eat('{');
       const expression = parseJavaScript();
       eat('}');
@@ -121,6 +121,26 @@ function parse(content) {
         type: 'Expression',
         expression,
       };
+    } else if (match('{#')) {
+      return parseBlock();
+    }
+  }
+
+  function parseBlock() {
+    console.log('parseBlock');
+    if (match('{#if')) {
+      eat('{#if')
+      skipWhitespace();
+      const expression = parseJavaScript();
+      eat('}');
+      const endTag = '{/if}';
+      const block = {
+        type: 'IfBlock',
+        expression,
+        children: parseFragments(() => !match(endTag))
+      }
+      eat(endTag);
+      return block;
     }
   }
 
@@ -282,7 +302,6 @@ function generate(ast, analysis) {
         break;
       }
       case 'Expression': {
-        console.log('expression', node);
         const variableName = `txt_${counter++}`;
         const expressionStr = escodegen.generate(node.expression);
         code.variables.push(variableName);
@@ -307,11 +326,35 @@ function generate(ast, analysis) {
           } else {
             condition = `changed.includes('${Array.from(changes)[0]}')`
           }
-          // todo .data?
           code.update.push(`if (${condition}) {
             ${variableName}.data = ${expressionStr};
           }`);
         }
+        break;
+      }
+      case 'IfBlock': {
+        const variableName = `if_block_${counter++}`;
+        const funcName = `${variableName}_func`;
+        const expressionStr = escodegen.generate(node.expression);
+        code.variables.push(variableName);
+        code.create.push(`function ${funcName}() {`)
+        code.create.push(`${variableName} = document.createDocumentFragment()`)
+        code.create.push(`if (${expressionStr}) {`);
+          node.children.forEach(subNode => {
+            traverse(subNode, variableName)
+          })
+          code.create.push(`${parent}.appendChild(${variableName})`);
+          code.destroy.push(`${parent}.removeChild(${variableName})`);
+        code.create.push('} else {')
+          // code.create.push(`${parent}.removeChild(${variableName})`); // todo
+          code.create.push('console.log("remove todo")');
+        code.create.push('}}');
+
+        code.create.push(`window.${funcName} = ${funcName};
+        ${funcName}()`);// call function
+        code.update.push(`window.${funcName}()`);
+        
+        console.log('if block-----------', node);
         break;
       }
     }
