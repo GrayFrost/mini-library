@@ -10,14 +10,27 @@ let txt_7;
 let txt_8;
 let txt_9;
         
-        function update() {}
+        let collectChanges = [];
+        let updateCalled = false;
+        function update(changed) {
+          changed.forEach(c => collectChanges.push(c));
+
+          if (updateCalled) return;
+          updateCalled = true;
+
+          if (typeof lifecycle !== 'undefined') {
+            lifecycle.update(collectChanges);
+          }
+          collectChanges = [];
+          updateCalled = false;
+        }
         let count = 0;
 const updateCount = () => {
     console.log('updateCount');
-    count++;
+    count++, update(['count']);
 };
 
-        var lifecircle = {
+        var lifecycle = {
           create(target) {
             button_1 = document.createElement('button')
 button_1.addEventListener('click', updateCount);
@@ -40,7 +53,9 @@ txt_9 = document.createTextNode(count)
 target.appendChild(txt_9);
           },
           update(changed) {
-            
+            if (changed.includes('count')) {
+            txt_9.data = count;
+          }
           },
           destroy(target) {
             button_1.removeEventListener('click', 'updateCount');
@@ -54,6 +69,6 @@ target.removeChild(ul_3)
 target.removeChild(txt_8)
           }
         };
-        return lifecircle;
+        return lifecycle;
       }
     

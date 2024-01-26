@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as acorn from "acorn";
-// import * as periscopic from "periscopic"; // todo 作用？
-// import * as estreewalker from "estree-walker"; // todo 作用？
+import * as periscopic from "periscopic"; // todo 作用？
+import * as estreewalker from "estree-walker"; // todo 作用？
 import * as escodegen from "escodegen"; // todo 作用？
 
 import { fileURLToPath } from 'url'
@@ -13,7 +13,7 @@ const modulePath = dirname(fileURLToPath(import.meta.url));
 // 将svelte文件转成浏览器可以执行的js文件
 function buildAppJs() {
   try {
-    const content = fs.readFileSync(resolve(modulePath, "./app-4.svelte"), "utf-8");
+    const content = fs.readFileSync(resolve(modulePath, "./app-8.svelte"), "utf-8");
     fs.writeFileSync(resolve(modulePath, "./app.js"), compile(content), "utf-8");
   } catch (e) {
     console.error(e);
@@ -21,9 +21,10 @@ function buildAppJs() {
 }
 
 function compile(content) {
-  console.log('compile', content);
+  console.log('compile');
   const ast = parse(content); // 解析svelte文件内容成ast
-  return generate(ast);
+  const analysis = analyse(ast); // 解析有哪些会更新的变量
+  return generate(ast , analysis);
 }
 
 function parse(content) {
@@ -46,7 +47,7 @@ function parse(content) {
   }
 
   function parseFragment() {
-    return parseScript() ?? parseElement() ?? parseText();
+    return parseScript() ?? parseElement() ?? parseExpression() ?? parseText();
   }
 
   function parseScript() {
@@ -73,12 +74,11 @@ function parse(content) {
       const attributes = parseAttributeList();
       eat('>');
       const endTag = `</${tagName}>`;
-      console.log('zzh endTag', endTag);
       const element = {
         type: 'Element',
         name: tagName,
         attributes,
-        children: [],
+        children: parseFragments(() => !match(endTag)),
       };
       eat(endTag);
       skipWhitespace();
@@ -107,6 +107,19 @@ function parse(content) {
         type: 'Attribute',
         name,
         value,
+      };
+    }
+  }
+
+  function parseExpression() {
+    console.log('parseExpression')
+    if (match('{')) {
+      eat('{');
+      const expression = parseJavaScript();
+      eat('}');
+      return {
+        type: 'Expression',
+        expression,
       };
     }
   }
@@ -153,7 +166,75 @@ function parse(content) {
   }
 }
 
-function generate(ast) {
+function analyse(ast) {
+  const result = {
+    variables: new Set(),
+    willChange: new Set(),
+    willUseInTemplate: new Set(),
+  };
+
+  const { scope: rootScope, map, globals } = periscopic.analyze(ast.script);
+  result.variables = new Set(rootScope.declarations.keys());
+  result.rootScope = rootScope;
+  result.map = map;
+
+  let currentScope = rootScope;
+  estreewalker.walk(ast.script, {
+    enter(node) {
+      if (map.has(node)) {
+        currentScope = map.get(node)
+      }
+      if (node.type === 'UpdateExpression' || node.type === 'AssignmentExpression') {
+        const names = periscopic.extract_names(node.type === 'UpdateExpression' ? node.argument : node.left);
+        for(const name of names) {
+          if (currentScope.find_owner(name) === rootScope || globals.has(name)) {
+            result.willChange.add(name);
+          }
+        }
+      }
+    },
+    leave(node) {
+      if (map.has(node)) {
+        currentScope = currentScope.parent;
+      }
+    }
+  })
+
+  function traverse(fragment) {
+    switch(fragment.type) {
+      case 'Element':
+        fragment.children.forEach((child) => traverse(child));
+        fragment.attributes.forEach((attribute) => traverse(attribute));
+        break;
+      case 'Attribute':
+        result.willUseInTemplate.add(fragment.value.name);
+        break;
+      case 'Expression': {
+        extract_names(fragment.expression).forEach((name) => {
+          result.willUseInTemplate.add(name);
+        });
+        break;
+      } 
+    }
+  }
+  ast.html.forEach(fragment => traverse(fragment));
+  return result;
+}
+
+function extract_names(jsNode, result = []) {
+  switch (jsNode.type) {
+    case 'Identifier':
+      result.push(jsNode.name);
+      break;
+    case 'BinaryExpression':
+      extract_names(jsNode.left, result);
+      extract_names(jsNode.right, result);
+      break;
+  }
+  return result;
+}
+
+function generate(ast, analysis) {
   const code = {
     variables: [],
     create: [],
@@ -200,16 +281,100 @@ function generate(ast) {
         code.destroy.push(`${parent}.removeChild(${variableName})`);
         break;
       }
+      case 'Expression': {
+        console.log('expression', node);
+        const variableName = `txt_${counter++}`;
+        const expressionStr = escodegen.generate(node.expression);
+        code.variables.push(variableName);
+        code.create.push(
+          `${variableName} = document.createTextNode(${expressionStr})`
+        );
+        code.create.push(`${parent}.appendChild(${variableName});`);
+
+        // 更新
+        const names = extract_names(node.expression);// todo extract_names
+        if (names.some((name) => analysis.willChange.has(name))) {
+          const changes = new Set();
+          names.forEach(name => {
+            if (analysis.willChange.has(name)) {
+              changes.add(name);
+            }
+          });
+          let condition;
+          if (changes.size > 1) {
+            condition = `${JSON.stringify(
+              Array.from(changes))}.some(name => changed.includes(name))`;
+          } else {
+            condition = `changed.includes('${Array.from(changes)[0]}')`
+          }
+          // todo .data?
+          code.update.push(`if (${condition}) {
+            ${variableName}.data = ${expressionStr};
+          }`);
+        }
+        break;
+      }
     }
   }
 
   ast.html.forEach((fragment) => traverse(fragment, 'target'));
 
+  const { rootScope, map } = analysis;
+  let currentScope = rootScope;
+  estreewalker.walk(ast.script, {
+    enter(node, parent) {
+      if (map.has(node)) {
+        currentScope = map.get(node)
+      }
+      if (node.type === 'UpdateExpression' || node.type === 'AssignmentExpression') {
+        const names = periscopic
+          .extract_names(
+            node.type === 'UpdateExpression' ? node.argument : node.left
+          )
+          .filter(
+            (name) =>
+              currentScope.find_owner(name) === rootScope &&
+              analysis.willUseInTemplate.has(name)
+          );
+        if (names.length > 0) {
+          this.replace({
+            type: 'SequenceExpression',
+            expressions: [
+              node,
+              acorn.parseExpressionAt(`update(${JSON.stringify(names)})`, 0, {
+                ecmaVersion: 2023,
+              }),
+            ],
+          });
+          this.skip();
+        }
+      }
+    },
+    leave(node) {
+      if (map.has(node)) {
+        currentScope = currentScope.parent;
+      }
+    }
+  })
+
   return `
       export default function() {
         ${code.variables.map(v => `let ${v};`).join('\n')}
         
-        function update() {}
+        let collectChanges = [];
+        let updateCalled = false;
+        function update(changed) {
+          changed.forEach(c => collectChanges.push(c));
+
+          if (updateCalled) return;
+          updateCalled = true;
+
+          if (typeof lifecycle !== 'undefined') {
+            lifecycle.update(collectChanges);
+          }
+          collectChanges = [];
+          updateCalled = false;
+        }
         ${escodegen.generate(ast.script)}
 
         var lifecycle = {

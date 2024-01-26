@@ -4,5 +4,8 @@ parsescript
 parseelement
 parsetext
 parseattribute
-parseExpression -- 放到后面
 traverse
+
+parseExpression
+
+analysis           periscopic版本有问题，降低版本

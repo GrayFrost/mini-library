@@ -103,7 +103,7 @@ function generate(ast) {
         function update() {}
         ${escodegen.generate(ast.script)}
 
-        var lifecircle = {
+        var lifecycle = {
           create(target) {
             ${code.create.join('\n')}
           },
@@ -114,7 +114,7 @@ function generate(ast) {
             ${code.destroy.join('\n')}
           }
         };
-        return lifecircle;
+        return lifecycle;
       }
     `;
 }

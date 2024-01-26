@@ -172,12 +172,12 @@ function generate() {
   }
   return `
       export default function() {
-        var lifecircle = {
+        var lifecycle = {
           create() {},
           update() {},
           destroy() {}
         }
-        return lifecircle;
+        return lifecycle;
       }
     `;
 }
