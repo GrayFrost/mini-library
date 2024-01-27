@@ -3,6 +3,7 @@ import * as acorn from "acorn";
 import * as periscopic from "periscopic"; // todo 作用？
 import * as estreewalker from "estree-walker"; // todo 作用？
 import * as escodegen from "escodegen"; // todo 作用？
+import * as prettier from "prettier";
 
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
@@ -11,10 +12,15 @@ import { dirname, resolve } from 'path'
 const modulePath = dirname(fileURLToPath(import.meta.url));
 
 // 将svelte文件转成浏览器可以执行的js文件
-function buildAppJs() {
+async function buildAppJs() {
   try {
-    const content = fs.readFileSync(resolve(modulePath, "./app-8.svelte"), "utf-8");
-    fs.writeFileSync(resolve(modulePath, "./app.js"), compile(content), "utf-8");
+    const inputPath = resolve(modulePath, "./app-10.svelte")
+    const outputPath = resolve(modulePath, "./app.js")
+    const content = fs.readFileSync(inputPath, "utf-8");
+    fs.writeFileSync(outputPath, compile(content), "utf-8");
+    const compiledContent = fs.readFileSync(outputPath, "utf-8");
+    const prettierContent = await prettier.format(compiledContent, {parser: 'babel'});
+    fs.writeFileSync(outputPath, prettierContent, "utf-8");
   } catch (e) {
     console.error(e);
   }
@@ -60,7 +66,6 @@ function parse(content) {
       const code = content.slice(startIndex, endIndex);
       ast.script = acorn.parse(code, { ecmaVersion: 2023 });
       i = endIndex;
-      console.log('zzh endindex', endIndex);
       eat("</script>");
       skipWhitespace();
     }
@@ -113,7 +118,7 @@ function parse(content) {
 
   function parseExpression() {
     console.log('parseExpression')
-    if (match('{')) {
+    if (match('{') && !match('{#')) {
       eat('{');
       const expression = parseJavaScript();
       eat('}');
@@ -121,6 +126,26 @@ function parse(content) {
         type: 'Expression',
         expression,
       };
+    } else if (match('{#')) {
+      return parseBlock();
+    }
+  }
+
+  function parseBlock() {
+    console.log('parseBlock');
+    if (match('{#if')) {
+      eat('{#if')
+      skipWhitespace();
+      const expression = parseJavaScript();
+      eat('}');
+      const endTag = '{/if}';
+      const block = {
+        type: 'IfBlock',
+        expression,
+        children: parseFragments(() => !match(endTag))
+      }
+      eat(endTag);
+      return block;
     }
   }
 
@@ -282,7 +307,6 @@ function generate(ast, analysis) {
         break;
       }
       case 'Expression': {
-        console.log('expression', node);
         const variableName = `txt_${counter++}`;
         const expressionStr = escodegen.generate(node.expression);
         code.variables.push(variableName);
@@ -307,11 +331,48 @@ function generate(ast, analysis) {
           } else {
             condition = `changed.includes('${Array.from(changes)[0]}')`
           }
-          // todo .data?
           code.update.push(`if (${condition}) {
             ${variableName}.data = ${expressionStr};
           }`);
         }
+        break;
+      }
+      case 'IfBlock': {
+        const variableName = `if_block_${counter++}`;
+        const funcName = `${variableName}_func`;
+        const funcCallName = `${funcName}_call`;
+        const expressionStr = escodegen.generate(node.expression);
+        code.variables.push(variableName);
+        code.variables.push(funcName);
+        code.variables.push(funcCallName);
+        code.create.push(`${funcName} = () => {`)
+        
+        code.create.push(`if (${expressionStr}) {
+          if (${funcCallName}) {return;}
+        `);
+        code.create.push(`
+          ${variableName} = document.createElement('span');
+        `);
+        node.children.forEach(subNode => {
+          traverse(subNode, variableName)
+        })
+        code.create.push(`${parent}.appendChild(${variableName})`);
+        
+        code.destroy.push(`${parent}.removeChild(${variableName})`);
+          
+        code.create.push(`
+          ${funcCallName} = true;
+        } else {
+          ${funcCallName} = false;
+        `);
+        code.create.push(`if (${variableName} && ${variableName}.parentNode) {
+          ${variableName}.parentNode.removeChild(${variableName});
+        }`);
+        code.create.push('}}');
+
+        code.create.push(`${funcName}()`);// call function
+        code.update.push(`${funcName}()`);
+        
         break;
       }
     }
