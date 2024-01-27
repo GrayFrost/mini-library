@@ -60,7 +60,6 @@ function parse(content) {
       const code = content.slice(startIndex, endIndex);
       ast.script = acorn.parse(code, { ecmaVersion: 2023 });
       i = endIndex;
-      console.log('zzh endindex', endIndex);
       eat("</script>");
       skipWhitespace();
     }
@@ -335,26 +334,39 @@ function generate(ast, analysis) {
       case 'IfBlock': {
         const variableName = `if_block_${counter++}`;
         const funcName = `${variableName}_func`;
+        const funcCallName = `${funcName}_call`;
         const expressionStr = escodegen.generate(node.expression);
         code.variables.push(variableName);
-        code.create.push(`function ${funcName}() {`)
-        code.create.push(`${variableName} = document.createDocumentFragment()`)
-        code.create.push(`if (${expressionStr}) {`);
-          node.children.forEach(subNode => {
-            traverse(subNode, variableName)
-          })
-          code.create.push(`${parent}.appendChild(${variableName})`);
-          code.destroy.push(`${parent}.removeChild(${variableName})`);
-        code.create.push('} else {')
-          // code.create.push(`${parent}.removeChild(${variableName})`); // todo
-          code.create.push('console.log("remove todo")');
+        code.variables.push(funcName);
+        code.variables.push(funcCallName);
+        code.create.push(`${funcName} = () => {`)
+        
+        code.create.push(`if (${expressionStr}) {
+          if (${funcCallName}) {return;}
+        `);
+        code.create.push(`
+          ${variableName} = document.createElement('span');
+        `);
+        node.children.forEach(subNode => {
+          traverse(subNode, variableName)
+        })
+        code.create.push(`${parent}.appendChild(${variableName})`);
+        
+        code.destroy.push(`${parent}.removeChild(${variableName})`);
+          
+        code.create.push(`
+          ${funcCallName} = true;
+        } else {
+          ${funcCallName} = false;
+        `);
+        code.create.push(`if (${variableName} && ${variableName}.parentNode) {
+          ${variableName}.parentNode.removeChild(${variableName});
+        }`);
         code.create.push('}}');
 
-        code.create.push(`window.${funcName} = ${funcName};
-        ${funcName}()`);// call function
-        code.update.push(`window.${funcName}()`);
+        code.create.push(`${funcName}()`);// call function
+        code.update.push(`${funcName}()`);
         
-        console.log('if block-----------', node);
         break;
       }
     }
