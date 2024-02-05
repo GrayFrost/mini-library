@@ -76,7 +76,7 @@ function parse(content) {
     skipWhitespace();
     if (match("<")) {
       eat("<");
-      const tagName = readWhileMatching(/[a-z]/);
+      const tagName = read(/[a-z]/);
       const attributes = parseAttributeList();
       eat(">");
       const endTag = `</${tagName}>`;
@@ -104,7 +104,7 @@ function parse(content) {
 
   function parseAttribute() {
     console.log("parseAttribute");
-    const name = readWhileMatching(/[^=]/);
+    const name = read(/[^=]/);
     if (match("={")) {
       eat("={");
       const value = parseJavaScript();
@@ -158,7 +158,7 @@ function parse(content) {
 
   function parseText() {
     console.log("parseText");
-    const text = readWhileMatching(/[^<{]/);
+    const text = read(/[^<{]/);
     if (text.trim() !== "") {
       return {
         type: "Text",
@@ -179,7 +179,7 @@ function parse(content) {
     }
   }
 
-  function readWhileMatching(reg) {
+  function read(reg) {
     let startIndex = i;
     while (i < content.length && reg.test(content[i])) {
       i++;
@@ -188,7 +188,7 @@ function parse(content) {
   }
 
   function skipWhitespace() {
-    readWhileMatching(/[\s\n]/);
+    read(/[\s\n]/);
   }
 }
 
