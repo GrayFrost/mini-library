@@ -44,6 +44,34 @@ export class Parser {
     }
     return false;
   }
+  allow_whitespace() {
+		while (this.index < this.template.length && regex_whitespace.test(this.template[this.index])) {
+			this.index++;
+		}
+	}
+  require_whitespace() {
+		// if (!regex_whitespace.test(this.template[this.index])) {
+		// 	this.error({
+		// 		code: 'missing-whitespace',
+		// 		message: 'Expected whitespace'
+		// 	});
+		// }
+		this.allow_whitespace();
+	}
+  read_until(pattern) {
+		const start = this.index;
+		const match = pattern.exec(this.template.slice(start));
+		if (match) {
+			this.index = start + match.index;
+			return this.template.slice(start, this.index);
+		}
+		this.index = this.template.length;
+		return this.template.slice(start);
+	}
+  read_identifier() { // todo
+    const identifier = '';
+    return identifier;
+  }
   // todo parser完善
 }
 
