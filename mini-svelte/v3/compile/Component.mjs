@@ -1,5 +1,7 @@
 import { walk } from 'estree-walker';
 import { print, b } from 'code-red';
+import { clone } from './utils.mjs';
+import { Fragment } from './Node.mjs';
 
 export default class Component {
   name;
@@ -22,10 +24,10 @@ export default class Component {
 
     this.walk_module_js();
     this.walk_instance_js_pre_template(); // todo不用？
-    this.fragment = new this.fragment(this, ast.html);
+    this.fragment = new Fragment(this, ast.html);
     this.walk_instance_js_post_template();
   }
-  generat(result){
+  generate(result){
     let js = null;
     if (result) {
       const { compile_options, name } = this;

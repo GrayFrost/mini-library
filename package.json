@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "acorn": "^8.11.3",
+    "code-red": "^1.0.4",
     "escodegen": "^2.1.0",
     "estree-walker": "^3.0.3",
     "periscopic": "^3.0.4",
