@@ -105,7 +105,7 @@ function parse(content) {
     if (text.trim() !== '') {
       return {
         type: 'Text',
-        value: text,
+        value: text.trim(),
       };
     }
   }
